@@ -3,11 +3,17 @@ import math
 import random
 from datetime import datetime, timedelta
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, mean_absolute_error
+from sklearn.metrics.pairwise import cosine_similarity
 
 APP_NAME = "GramaVoice"
 
@@ -175,6 +181,112 @@ def load_demo_history() -> pd.DataFrame:
             }
         )
     return pd.DataFrame(records)
+
+
+@st.cache_data(show_spinner=False)
+def load_ml_demo_data(days: int = 420) -> pd.DataFrame:
+    rng = np.random.default_rng(42)
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=days - 1)
+    dates = pd.date_range(start_date, end_date, freq="D")
+    districts = ["Jaipur", "Bhopal", "Lucknow", "Patna"]
+    villages = {
+        "Jaipur": ["Rampur", "Kheda", "Devli"],
+        "Bhopal": ["Nandgaon", "Sundarpur", "Pipliya"],
+        "Lucknow": ["Bhagwanpur", "Chinhat", "Mohanlalganj"],
+        "Patna": ["Bihta", "Fatuha", "Danapur"],
+    }
+    sentiments = ["angry", "urgent", "normal", "confused"]
+    services = ["pension", "pmkisan", "ration", "health", "electricity", "water"]
+    templates = {
+        "angry": "My electricity problem is unresolved and villagers are upset.",
+        "urgent": "Need urgent ration support due to delayed delivery.",
+        "normal": "Please share pension status for this month.",
+        "confused": "I am confused about PM-Kisan documents and process.",
+    }
+
+    rows = []
+    for dt in dates:
+        seasonal = 48 + 8 * np.sin(2 * np.pi * dt.timetuple().tm_yday / 30)
+        weekend_penalty = -5 if dt.weekday() >= 5 else 0
+        daily_base = max(18, seasonal + weekend_penalty + rng.normal(0, 3))
+        for district in districts:
+            district_factor = {"Jaipur": 1.15, "Bhopal": 1.0, "Lucknow": 0.95, "Patna": 1.08}[district]
+            village = rng.choice(villages[district])
+            complaints = int(max(5, daily_base * district_factor + rng.normal(0, 4)))
+            angry_ratio = float(np.clip(0.12 + rng.normal(0, 0.03), 0.05, 0.25))
+            urgent_ratio = float(np.clip(0.2 + rng.normal(0, 0.04), 0.1, 0.35))
+            confused_ratio = float(np.clip(0.18 + rng.normal(0, 0.03), 0.08, 0.3))
+            normal_ratio = max(0.05, 1 - angry_ratio - urgent_ratio - confused_ratio)
+            ratio_map = {
+                "angry": angry_ratio,
+                "urgent": urgent_ratio,
+                "normal": normal_ratio,
+                "confused": confused_ratio,
+            }
+            sentiment = rng.choice(sentiments, p=[ratio_map[s] for s in sentiments])
+            query_service = rng.choice(services)
+            response_time = round(max(0.7, rng.normal(2.4, 0.8)), 2)
+            confidence = round(float(np.clip(rng.normal(0.84, 0.08), 0.55, 0.99)), 2)
+            failure = int(rng.random() < max(0.02, 0.14 - confidence * 0.12))
+            user_id = f"U-{rng.integers(1000, 2200)}"
+            rows.append(
+                {
+                    "date": dt,
+                    "district": district,
+                    "village": village,
+                    "complaint_volume": complaints,
+                    "sentiment": sentiment,
+                    "service": query_service,
+                    "query_text": templates[sentiment],
+                    "response_time_sec": response_time,
+                    "confidence": confidence,
+                    "failure": failure,
+                    "user_id": user_id,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+@st.cache_resource(show_spinner=False)
+def train_prediction_model(data: pd.DataFrame):
+    daily = data.groupby("date", as_index=False)["complaint_volume"].sum().sort_values("date").copy()
+    daily["day_index"] = np.arange(len(daily))
+    daily["dow"] = daily["date"].dt.dayofweek
+    daily["lag1"] = daily["complaint_volume"].shift(1).bfill()
+    daily["lag7"] = daily["complaint_volume"].shift(7).bfill()
+    X = daily[["day_index", "dow", "lag1", "lag7"]]
+    y = daily["complaint_volume"]
+    split = int(len(daily) * 0.85)
+    X_train, X_test = X.iloc[:split], X.iloc[split:]
+    y_train, y_test = y.iloc[:split], y.iloc[split:]
+    model = RandomForestRegressor(n_estimators=160, random_state=42)
+    model.fit(X_train, y_train)
+    test_pred = model.predict(X_test)
+    mae = mean_absolute_error(y_test, test_pred)
+    acc = max(0, 100 - (mae / max(1, y_test.mean())) * 100)
+    return model, daily, float(acc)
+
+
+@st.cache_resource(show_spinner=False)
+def train_sentiment_model():
+    texts = [
+        "Power outage still unresolved and everyone is angry",
+        "Need urgent water tanker today",
+        "Please share normal pension update",
+        "I am confused about ration form",
+        "officer is not responding very angry",
+        "urgent medical help required",
+        "thank you query resolved normal",
+        "not clear about pmkisan process",
+    ]
+    labels = ["angry", "urgent", "normal", "confused", "angry", "urgent", "normal", "confused"]
+    vec = TfidfVectorizer(ngram_range=(1, 2), min_df=1)
+    X = vec.fit_transform(texts)
+    clf = LogisticRegression(max_iter=400)
+    clf.fit(X, labels)
+    train_acc = accuracy_score(labels, clf.predict(X))
+    return vec, clf, float(train_acc)
 
 
 def init_state() -> None:
@@ -448,6 +560,222 @@ def render_history():
     st.caption(f"Showing {start + 1}-{min(end, len(df))} of {len(df)} rows")
 
 
+def render_prediction_engine():
+    st.markdown("### 📈 Prediction Engine")
+    st.caption("Forecasts complaint volume using a lightweight time-series regression model for governance planning.")
+    try:
+        data = load_ml_demo_data()
+        model, daily, model_acc = train_prediction_model(data)
+        horizon = st.radio("Forecast horizon", [7, 30], horizontal=True, help="Choose short-term or monthly projection.")
+
+        future_rows = []
+        last_day_index = int(daily["day_index"].iloc[-1])
+        history_vals = daily["complaint_volume"].tolist()
+        next_date = daily["date"].max() + timedelta(days=1)
+        for i in range(horizon):
+            date_i = next_date + timedelta(days=i)
+            lag1 = history_vals[-1]
+            lag7 = history_vals[-7] if len(history_vals) > 7 else history_vals[-1]
+            feat = pd.DataFrame(
+                [{"day_index": last_day_index + i + 1, "dow": date_i.weekday(), "lag1": lag1, "lag7": lag7}]
+            )
+            pred = float(model.predict(feat)[0])
+            history_vals.append(pred)
+            future_rows.append({"date": date_i, "forecast": round(max(0, pred), 1)})
+
+        future_df = pd.DataFrame(future_rows)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Model accuracy score", f"{model_acc:.1f}%")
+        c2.metric(f"Forecast {horizon} days total", f"{future_df['forecast'].sum():.0f}")
+        c3.metric("Latest day complaints", f"{int(daily['complaint_volume'].iloc[-1])}")
+
+        recent = daily.tail(75).rename(columns={"complaint_volume": "actual"})
+        plot_df = pd.concat(
+            [
+                recent[["date", "actual"]].assign(series="Actual", value=recent["actual"]),
+                future_df[["date", "forecast"]].assign(series="Forecast", value=future_df["forecast"]),
+            ],
+            ignore_index=True,
+        )
+        fig = px.line(plot_df, x="date", y="value", color="series", markers=True, title="Complaint Volume Forecast")
+        st.plotly_chart(fig, width="stretch")
+    except Exception as e:
+        st.warning(f"Prediction engine switched to demo-safe mode: {e}")
+
+
+def render_sentiment_analysis():
+    st.markdown("### 💬 Sentiment Intelligence")
+    st.caption("Classifies incoming intent into angry, urgent, normal, or confused to prioritize grievance handling.")
+    try:
+        data = load_ml_demo_data().copy()
+        vec, clf, train_acc = train_sentiment_model()
+
+        sample_query = st.text_input(
+            "Try a citizen query",
+            value="Need urgent help for water issue",
+            help="This runs NLP sentiment classification on your sample text.",
+        )
+        pred = clf.predict(vec.transform([sample_query]))[0]
+        probs = clf.predict_proba(vec.transform([sample_query]))[0]
+        label_idx = list(clf.classes_).index(pred)
+        st.success(f"Predicted sentiment: **{pred.upper()}** | confidence: **{probs[label_idx]*100:.1f}%**")
+        st.metric("Model training accuracy", f"{train_acc*100:.1f}%")
+
+        data["week"] = data["date"].dt.to_period("W").astype(str)
+        trend = data.groupby(["week", "sentiment"]).size().reset_index(name="count")
+        fig = px.area(trend, x="week", y="count", color="sentiment", title="Weekly Sentiment Trend")
+        st.plotly_chart(fig, width="stretch")
+    except Exception as e:
+        st.warning(f"Sentiment module fallback activated: {e}")
+
+
+def render_region_analytics():
+    st.markdown("### 🗺️ Region Analytics")
+    st.caption("District and village level grievance load monitoring for targeted intervention.")
+    try:
+        data = load_ml_demo_data()
+        district_stats = data.groupby("district", as_index=False)["complaint_volume"].sum()
+        village_stats = data.groupby(["district", "village"], as_index=False)["complaint_volume"].sum()
+
+        fig_bar = px.bar(district_stats, x="district", y="complaint_volume", color="district", title="District Complaint Volume")
+        st.plotly_chart(fig_bar, width="stretch")
+
+        heat = village_stats.pivot(index="district", columns="village", values="complaint_volume").fillna(0)
+        heat_fig = px.imshow(heat, text_auto=True, aspect="auto", title="District-Village Heatmap")
+        st.plotly_chart(heat_fig, width="stretch")
+    except Exception as e:
+        st.warning(f"Region analytics fallback mode: {e}")
+
+
+def render_recommendation_system():
+    st.markdown("### 🤝 Service Recommendation System")
+    st.caption("Suggests relevant government services based on current query and historical interactions.")
+    service_knowledge = {
+        "pension": "old age pension widow pension monthly transfer social welfare",
+        "pmkisan": "farmer support installment land record agriculture benefit",
+        "ration": "food grains ration card pds quota family",
+        "health": "health camp medical checkup vaccine clinic",
+        "electricity": "power outage bill meter transformer line issue",
+        "water": "water supply tap leakage tanker jal scheme",
+    }
+    try:
+        query = st.text_input("Citizen query", value="Need help with delayed ration and pension", help="NLP recommendation uses cosine similarity.")
+        history_text = " ".join(load_ml_demo_data().sample(30, random_state=42)["query_text"].tolist())
+        corpus = list(service_knowledge.values()) + [history_text, query]
+        vec = TfidfVectorizer()
+        mat = vec.fit_transform(corpus)
+        service_mat = mat[: len(service_knowledge)]
+        query_vec = mat[-1]
+        sims = cosine_similarity(query_vec, service_mat).flatten()
+        rec_df = pd.DataFrame({"service": list(service_knowledge.keys()), "score": sims}).sort_values("score", ascending=False)
+        st.dataframe(rec_df.head(3), hide_index=True, width="stretch")
+
+        radar = go.Figure()
+        radar.add_trace(
+            go.Scatterpolar(
+                r=rec_df["score"].head(5).tolist(),
+                theta=rec_df["service"].head(5).tolist(),
+                fill="toself",
+                name="Service relevance",
+            )
+        )
+        radar.update_layout(title="Recommendation Relevance Radar", polar=dict(radialaxis=dict(visible=True, range=[0, 1])))
+        st.plotly_chart(radar, width="stretch")
+    except Exception as e:
+        st.warning(f"Recommendation module fallback mode: {e}")
+
+
+def render_performance_analytics():
+    st.markdown("### ⚙️ AI Performance Analytics")
+    st.caption("Tracks response time, accuracy score, and failure rate for operational reliability.")
+    try:
+        data = load_ml_demo_data()
+        avg_time = data["response_time_sec"].mean()
+        accuracy = data["confidence"].mean() * 100
+        failure_rate = data["failure"].mean() * 100
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Avg response time", f"{avg_time:.2f}s")
+        c2.metric("Accuracy score", f"{accuracy:.1f}%")
+        c3.metric("Failure rate", f"{failure_rate:.1f}%")
+
+        perf_daily = data.groupby("date", as_index=False).agg(
+            response_time_sec=("response_time_sec", "mean"),
+            confidence=("confidence", "mean"),
+            failure=("failure", "mean"),
+        )
+        perf_daily["confidence"] *= 100
+        perf_daily["failure"] *= 100
+        fig = px.line(
+            perf_daily.tail(90),
+            x="date",
+            y=["response_time_sec", "confidence", "failure"],
+            title="Performance Trend (Last 90 days)",
+        )
+        st.plotly_chart(fig, width="stretch")
+    except Exception as e:
+        st.warning(f"Performance analytics unavailable; demo fallback active: {e}")
+
+
+def render_explainable_ai_panel():
+    st.markdown("### 🔍 Explainable AI Panel")
+    st.caption("Explains why forecasts are generated: feature influence and confidence transparency.")
+    try:
+        data = load_ml_demo_data()
+        model, _, model_acc = train_prediction_model(data)
+        feat_df = pd.DataFrame(
+            {
+                "feature": ["day_index", "dow", "lag1", "lag7"],
+                "importance": model.feature_importances_,
+            }
+        ).sort_values("importance", ascending=False)
+        fig = px.bar(feat_df, x="feature", y="importance", color="feature", title="Feature Importance")
+        st.plotly_chart(fig, width="stretch")
+        st.info(
+            f"Model confidence proxy: **{model_acc:.1f}%**. Higher importance means the model relies more on that signal for forecasting."
+        )
+    except Exception as e:
+        st.warning(f"Explainability panel in fallback mode: {e}")
+
+
+def render_user_growth_analytics():
+    st.markdown("### 👥 User Growth Analytics")
+    st.caption("Tracks DAU, WAU, and retention to measure adoption and product stickiness.")
+    try:
+        data = load_ml_demo_data().copy()
+        dau = data.groupby("date")["user_id"].nunique().reset_index(name="DAU")
+
+        wau_rows = []
+        for i in range(6, len(dau)):
+            start = dau.loc[i - 6, "date"]
+            end = dau.loc[i, "date"]
+            users = data[(data["date"] >= start) & (data["date"] <= end)]["user_id"].nunique()
+            wau_rows.append({"date": end, "WAU": users})
+        wau = pd.DataFrame(wau_rows)
+
+        retained = []
+        base_users = set(data[data["date"] >= data["date"].max() - timedelta(days=30)]["user_id"])
+        for week in range(1, 5):
+            end = data["date"].max() - timedelta(days=(week - 1) * 7)
+            start = end - timedelta(days=6)
+            weekly_users = set(data[(data["date"] >= start) & (data["date"] <= end)]["user_id"])
+            retention = (len(base_users & weekly_users) / max(1, len(base_users))) * 100
+            retained.append({"cohort_week": f"W-{week}", "retention": retention})
+        retention_df = pd.DataFrame(retained)
+
+        growth_fig = go.Figure()
+        growth_fig.add_trace(go.Scatter(x=dau.tail(90)["date"], y=dau.tail(90)["DAU"], mode="lines", name="DAU"))
+        if not wau.empty:
+            growth_fig.add_trace(go.Scatter(x=wau.tail(90)["date"], y=wau.tail(90)["WAU"], mode="lines", name="WAU"))
+        growth_fig.update_layout(title="User Growth: DAU vs WAU")
+        st.plotly_chart(growth_fig, width="stretch")
+
+        rfig = px.bar(retention_df, x="cohort_week", y="retention", title="Weekly Retention %")
+        st.plotly_chart(rfig, width="stretch")
+    except Exception as e:
+        st.warning(f"User growth module fallback mode: {e}")
+
+
 def render_about():
     st.markdown("### About GramaVoice")
     st.markdown("<div class='glass'>", unsafe_allow_html=True)
@@ -473,7 +801,7 @@ with st.sidebar:
     st.session_state.offline_mode = st.toggle(t["offline"], value=st.session_state.offline_mode)
     page = st.radio(
         "Navigate",
-        ["Home", "Voice Demo", "Services", "Dashboard", "History", "About"],
+        ["Home", "Voice Demo", "Services", "Dashboard", "Prediction Engine", "Sentiment Analysis", "Region Analytics", "Recommendation System", "Performance Analytics", "Explainable AI", "User Growth", "History", "About"],
     )
 
 st.markdown(
@@ -498,6 +826,20 @@ try:
         render_services()
     elif page == "Dashboard":
         render_dashboard()
+    elif page == "Prediction Engine":
+        render_prediction_engine()
+    elif page == "Sentiment Analysis":
+        render_sentiment_analysis()
+    elif page == "Region Analytics":
+        render_region_analytics()
+    elif page == "Recommendation System":
+        render_recommendation_system()
+    elif page == "Performance Analytics":
+        render_performance_analytics()
+    elif page == "Explainable AI":
+        render_explainable_ai_panel()
+    elif page == "User Growth":
+        render_user_growth_analytics()
     elif page == "History":
         render_history()
     else:
