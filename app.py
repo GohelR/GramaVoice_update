@@ -1,1703 +1,507 @@
-"""
-GramaVoice - Voice-Powered Rural Service Gateway
-Streamlit Cloud Compatible Version - Premium UI/UX Edition
-
-This app demonstrates a voice-AI powered platform for rural India with
-startup-level premium UI/UX featuring clean design, glassmorphism, and mobile-first layout.
-
-Author: GramaVoice Team
-Version: 4.0.0 (Premium UI/UX)
-"""
-
-import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
-import random
 import json
-import requests
-from streamlit_lottie import st_lottie
+import math
+import random
+from datetime import datetime, timedelta
 
-# ==================== CONFIGURATION ====================
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+import streamlit.components.v1 as components
 
 APP_NAME = "GramaVoice"
-APP_VERSION = "4.0.0"
-
-# Supported languages
-SUPPORTED_LANGUAGES = [
-    {"code": "hi", "name": "Hindi", "display": "हिन्दी"},
-    {"code": "en", "name": "English", "display": "English"},
-    {"code": "gu", "name": "Gujarati", "display": "ગુજરાતી"},
-    {"code": "ta", "name": "Tamil", "display": "தமிழ்"},
-    {"code": "te", "name": "Telugu", "display": "తెలుగు"},
-    {"code": "ml", "name": "Malayalam", "display": "മലയാളം"},
-    {"code": "kn", "name": "Kannada", "display": "ಕನ್ನಡ"},
-    {"code": "mr", "name": "Marathi", "display": "मराठी"},
-    {"code": "bn", "name": "Bengali", "display": "বাংলা"},
-    {"code": "pa", "name": "Punjabi", "display": "ਪੰਜਾਬੀ"},
-]
-
-# Service categories
-SERVICE_CATEGORIES = [
-    {
-        "id": "pension",
-        "name": "Pension Status",
-        "icon": "💰",
-        "description": "Check pension payment status",
-    },
-    {
-        "id": "pmkisan",
-        "name": "PM-Kisan",
-        "icon": "🌾",
-        "description": "Farmer subsidy information",
-    },
-    {
-        "id": "ration",
-        "name": "Ration Card",
-        "icon": "🍚",
-        "description": "Ration card services",
-    },
-    {
-        "id": "health",
-        "name": "Health Camps",
-        "icon": "🏥",
-        "description": "Health camp schedules",
-    },
-    {
-        "id": "electricity",
-        "name": "Electricity",
-        "icon": "⚡",
-        "description": "Power supply complaints",
-    },
-    {
-        "id": "water",
-        "name": "Water Supply",
-        "icon": "💧",
-        "description": "Water supply issues",
-    },
-]
-
-# ==================== PAGE CONFIGURATION ====================
 
 st.set_page_config(
-    page_title=f"{APP_NAME} - Empowering Rural Voices",
-    page_icon="🎤",
+    page_title=f"{APP_NAME} | Rural AI Service Gateway",
+    page_icon="🎙️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
-
-# ==================== CUSTOM CSS - PREMIUM UI/UX ====================
 
 st.markdown(
     """
 <style>
-    /* ============================================
-       PREMIUM DESIGN SYSTEM - Clean & Minimal
-       ============================================ */
-    
-    /* Color Palette */
-    :root {
-        --royal-blue: #2563EB;
-        --sky-blue: #38BDF8;
-        --soft-white: #F8FAFC;
-        --pure-white: #FFFFFF;
-        --text-primary: #1E293B;
-        --text-secondary: #64748B;
-        --success: #10B981;
-        --warning: #F59E0B;
-        --error: #EF4444;
-        --border-light: rgba(203, 213, 225, 0.3);
-        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
-        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-        --shadow-lg: 0 10px 30px rgba(37, 99, 235, 0.12);
-        --shadow-xl: 0 20px 50px rgba(37, 99, 235, 0.15);
-    }
-    
-    /* ============================================
-       GLOBAL STYLES - Mobile First
-       ============================================ */
-    
-    .stApp {
-        background: var(--soft-white);
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
-    }
-    
-    /* Typography Improvements */
-    h1, h2, h3, h4, h5, h6 {
-        color: var(--text-primary);
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        line-height: 1.3;
-    }
-    
-    p, span, div {
-        color: var(--text-secondary);
-        line-height: 1.6;
-    }
-    
-    /* ============================================
-       GRADIENT HERO HEADER
-       ============================================ */
-    
-    .main-header {
-        background: linear-gradient(135deg, var(--royal-blue) 0%, var(--sky-blue) 100%);
-        padding: 2.5rem 2rem;
-        border-radius: 24px;
-        color: white;
-        text-align: center;
-        margin-bottom: 2.5rem;
-        box-shadow: var(--shadow-xl);
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .main-header::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.1) 100%);
-        pointer-events: none;
-    }
-    
-    .main-header h1 {
-        font-size: clamp(1.75rem, 5vw, 3rem);
-        margin: 0;
-        font-weight: 800;
-        letter-spacing: -0.03em;
-        color: white;
-        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        position: relative;
-        z-index: 1;
-    }
-    
-    .main-header p {
-        font-size: clamp(0.95rem, 2.5vw, 1.25rem);
-        margin: 1rem 0 0 0;
-        opacity: 0.95;
-        font-weight: 500;
-        color: white;
-        position: relative;
-        z-index: 1;
-    }
+:root {
+  --bg:#f4f8ff;
+  --card:rgba(255,255,255,0.7);
+  --text:#0f172a;
+  --muted:#475569;
+  --brand:#2563eb;
+  --brand2:#0ea5e9;
+  --good:#059669;
+  --warn:#d97706;
+  --bad:#dc2626;
+}
 
-    .impact-strip {
-        background: linear-gradient(90deg, #ffedd5 0%, #ecfeff 45%, #dcfce7 100%);
-        border: 1px solid rgba(37, 99, 235, 0.18);
-        border-radius: 16px;
-        padding: 1rem 1.25rem;
-        margin: 0 0 1.5rem 0;
-        text-align: center;
-        font-weight: 600;
-        color: var(--text-primary);
-    }
+.stApp {background:var(--bg); color:var(--text); font-size:17px;}
+.block-container {padding-top:1.3rem; max-width:1200px;}
 
-    .hero-cta {
-        background: var(--pure-white);
-        border-radius: 20px;
-        padding: 1.5rem;
-        border: 1px solid var(--border-light);
-        box-shadow: var(--shadow-md);
-        margin-bottom: 1.5rem;
-    }
+.hero {
+  background: linear-gradient(135deg, #2563eb 0%, #38bdf8 100%);
+  border-radius:24px;
+  padding:1.5rem;
+  color:white;
+  box-shadow:0 14px 32px rgba(37,99,235,.22);
+  margin-bottom:1rem;
+}
+.hero h1,.hero p{color:white; margin:0;}
+.hero p{margin-top:.45rem; opacity:.95;}
 
-    .hero-cta h3 {
-        margin-top: 0;
-        color: var(--royal-blue);
-    }
+.glass {
+  background: var(--card);
+  backdrop-filter: blur(10px);
+  border:1px solid rgba(148,163,184,.25);
+  box-shadow:0 8px 24px rgba(15,23,42,.08);
+  border-radius:18px;
+  padding:1rem;
+  margin-bottom:.9rem;
+}
 
-    .story-card {
-        background: var(--pure-white);
-        border: 1px solid var(--border-light);
-        border-radius: 18px;
-        padding: 1.25rem;
-        box-shadow: var(--shadow-sm);
-        height: 100%;
-    }
+.metric-card {
+  background:linear-gradient(135deg,#ffffff,#f1f8ff);
+  border:1px solid rgba(37,99,235,.18);
+  border-radius:16px;
+  padding:1rem;
+}
 
-    .story-tag {
-        display: inline-block;
-        background: rgba(37, 99, 235, 0.1);
-        color: var(--royal-blue);
-        font-size: 0.78rem;
-        font-weight: 700;
-        letter-spacing: 0.03em;
-        padding: 0.3rem 0.55rem;
-        border-radius: 999px;
-        margin-bottom: 0.75rem;
-    }
+.big-btn .stButton>button,
+.stButton>button {
+  width:100%;
+  min-height:48px;
+  border-radius:12px;
+  border:none;
+  font-weight:700;
+  box-shadow:0 6px 16px rgba(37,99,235,.18);
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  color:#fff;
+}
 
-    .trust-badge-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.6rem;
-        margin-top: 1rem;
-    }
+[data-testid="stSidebar"] {background:#ffffff; border-right:1px solid #e2e8f0;}
 
-    .trust-badge {
-        background: rgba(15, 23, 42, 0.03);
-        border: 1px solid var(--border-light);
-        color: var(--text-primary);
-        border-radius: 999px;
-        padding: 0.45rem 0.85rem;
-        font-size: 0.84rem;
-        font-weight: 600;
-    }
-
-    .about-section {
-        background: var(--pure-white);
-        border: 1px solid var(--border-light);
-        border-radius: 20px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .about-section h4 {
-        margin-top: 0;
-        color: var(--royal-blue);
-    }
-    
-    /* ============================================
-       GLASSMORPHISM CARDS
-       ============================================ */
-    
-    .service-card {
-        background: var(--pure-white);
-        padding: 1.75rem;
-        border-radius: 20px;
-        border: 1px solid var(--border-light);
-        box-shadow: var(--shadow-md);
-        margin-bottom: 1.25rem;
-        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .service-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 4px;
-        height: 100%;
-        background: linear-gradient(180deg, var(--royal-blue), var(--sky-blue));
-        transform: scaleY(0);
-        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
-    .service-card:hover {
-        transform: translateY(-6px);
-        box-shadow: var(--shadow-lg);
-        border-color: var(--sky-blue);
-    }
-    
-    .service-card:hover::before {
-        transform: scaleY(1);
-    }
-    
-    .service-card h3 {
-        color: var(--royal-blue);
-        margin-top: 0;
-        margin-bottom: 0.75rem;
-        font-size: clamp(1.1rem, 2.2vw, 1.35rem);
-        font-weight: 700;
-    }
-    
-    .service-card p {
-        color: var(--text-secondary);
-        font-size: clamp(0.9rem, 1.8vw, 1rem);
-        margin: 0;
-        line-height: 1.6;
-    }
-    
-    /* ============================================
-       STATS CARDS - Modern Gradient
-       ============================================ */
-    
-    .stats-card {
-        background: linear-gradient(135deg, var(--royal-blue) 0%, var(--sky-blue) 100%);
-        color: white;
-        padding: 2rem 1.5rem;
-        border-radius: 20px;
-        text-align: center;
-        box-shadow: var(--shadow-lg);
-        transition: all 0.35s ease;
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .stats-card::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        right: 0;
-        width: 100%;
-        height: 100%;
-        background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
-        opacity: 0;
-        transition: opacity 0.35s ease;
-    }
-    
-    .stats-card:hover {
-        transform: translateY(-4px) scale(1.02);
-        box-shadow: var(--shadow-xl);
-    }
-    
-    .stats-card:hover::after {
-        opacity: 1;
-    }
-    
-    .stats-number {
-        font-size: clamp(2rem, 5vw, 3rem);
-        font-weight: 800;
-        margin: 0;
-        color: white;
-        position: relative;
-        z-index: 1;
-    }
-    
-    .stats-label {
-        font-size: clamp(0.85rem, 1.6vw, 1rem);
-        opacity: 0.95;
-        margin-top: 0.5rem;
-        font-weight: 500;
-        color: white;
-        position: relative;
-        z-index: 1;
-    }
-    
-    /* ============================================
-       RESPONSE & ALERT BOXES
-       ============================================ */
-    
-    .response-card {
-        background: var(--pure-white);
-        border-left: 4px solid var(--sky-blue);
-        padding: 1.75rem;
-        border-radius: 16px;
-        margin: 1.25rem 0;
-        box-shadow: var(--shadow-md);
-        border: 1px solid var(--border-light);
-        transition: all 0.3s ease;
-    }
-    
-    .response-card:hover {
-        box-shadow: var(--shadow-lg);
-    }
-    
-    .info-box {
-        background: rgba(224, 242, 254, 0.4);
-        border-left: 4px solid var(--royal-blue);
-        padding: 1.25rem;
-        border-radius: 14px;
-        margin: 1.25rem 0;
-        box-shadow: var(--shadow-sm);
-        border: 1px solid rgba(37, 99, 235, 0.15);
-    }
-    
-    .success-box {
-        background: rgba(209, 250, 229, 0.4);
-        border-left: 4px solid var(--success);
-        padding: 1.25rem;
-        border-radius: 14px;
-        margin: 1.25rem 0;
-        box-shadow: var(--shadow-sm);
-        border: 1px solid rgba(16, 185, 129, 0.15);
-    }
-    
-    .warning-box {
-        background: rgba(254, 243, 199, 0.4);
-        border-left: 4px solid var(--warning);
-        padding: 1.25rem;
-        border-radius: 14px;
-        margin: 1.25rem 0;
-        box-shadow: var(--shadow-sm);
-        border: 1px solid rgba(245, 158, 11, 0.15);
-    }
-    
-    /* ============================================
-       PROFESSIONAL BUTTONS
-       ============================================ */
-    
-    .stButton > button {
-        background: linear-gradient(135deg, var(--royal-blue) 0%, var(--sky-blue) 100%);
-        color: white;
-        border: none;
-        border-radius: 12px;
-        padding: 0.75rem 2rem;
-        font-weight: 600;
-        font-size: 1rem;
-        box-shadow: var(--shadow-md);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        cursor: pointer;
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-lg);
-    }
-    
-    .stButton > button:active {
-        transform: translateY(0);
-        box-shadow: var(--shadow-sm);
-    }
-    
-    /* ============================================
-       SIDEBAR STYLING
-       ============================================ */
-    
-    [data-testid="stSidebar"] {
-        background: var(--pure-white);
-        border-right: 1px solid var(--border-light);
-        box-shadow: var(--shadow-md);
-    }
-    
-    [data-testid="stSidebar"] .stRadio > label {
-        background: var(--soft-white);
-        padding: 0.75rem 1rem;
-        border-radius: 12px;
-        margin-bottom: 0.5rem;
-        transition: all 0.3s ease;
-        border: 1px solid var(--border-light);
-    }
-    
-    [data-testid="stSidebar"] .stRadio > label:hover {
-        background: var(--pure-white);
-        border-color: var(--sky-blue);
-        box-shadow: var(--shadow-sm);
-    }
-    
-    /* ============================================
-       LOADING SPINNER
-       ============================================ */
-    
-    .stSpinner > div {
-        border-top-color: var(--royal-blue) !important;
-        border-right-color: var(--sky-blue) !important;
-    }
-    
-    /* ============================================
-       MICRO-ANIMATIONS (CSS Only)
-       ============================================ */
-    
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    @keyframes pulse {
-        0%, 100% {
-            opacity: 1;
-        }
-        50% {
-            opacity: 0.8;
-        }
-    }
-    
-    @keyframes slideIn {
-        from {
-            transform: translateX(-10px);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-    
-    .service-card, .stats-card {
-        animation: fadeInUp 0.6s ease-out;
-    }
-    
-    /* ============================================
-       MOBILE RESPONSIVE - Tablet & Phone
-       ============================================ */
-    
-    @media (max-width: 768px) {
-        .main-header {
-            padding: 2rem 1.5rem;
-            border-radius: 20px;
-            margin-bottom: 2rem;
-        }
-
-        .impact-strip,
-        .hero-cta,
-        .about-section {
-            padding: 1rem;
-            border-radius: 14px;
-        }
-
-        .story-card {
-            margin-bottom: 0.8rem;
-        }
-        
-        .service-card {
-            padding: 1.25rem;
-            border-radius: 16px;
-        }
-        
-        .stats-card {
-            padding: 1.5rem 1rem;
-            border-radius: 16px;
-        }
-        
-        .stButton > button {
-            padding: 0.65rem 1.5rem;
-            font-size: 0.95rem;
-        }
-    }
-    
-    @media (max-width: 480px) {
-        .main-header {
-            padding: 1.5rem 1rem;
-            border-radius: 16px;
-        }
-        
-        .service-card {
-            padding: 1rem;
-        }
-        
-        .stats-card {
-            padding: 1.25rem 0.75rem;
-        }
-    }
-    
-    /* ============================================
-       BETTER SPACING
-       ============================================ */
-    
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 3rem;
-        max-width: 1200px;
-    }
-    
-    section.main > div {
-        padding-bottom: 2rem;
-    }
-    
-    /* ============================================
-       HIDE STREAMLIT BRANDING
-       ============================================ */
-    
-    #MainMenu {
-        visibility: hidden;
-    }
-    
-    footer {
-        visibility: hidden;
-    }
-    
-    header {
-        visibility: hidden;
-    }
-    
-    /* ============================================
-       SMOOTH TRANSITIONS - Targeted Elements
-       ============================================ */
-    
-    .service-card,
-    .stats-card,
-    .response-card,
-    .info-box,
-    .success-box,
-    .warning-box,
-    button,
-    a,
-    [data-testid="stSidebar"] .stRadio > label {
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
-    input,
-    select,
-    textarea {
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
+@media (max-width: 900px) {
+  .block-container {padding: .8rem .65rem 4rem .65rem;}
+  .hero {padding:1rem; border-radius:16px;}
+}
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-# ==================== LOTTIE ANIMATION HELPER ====================
-
-def load_lottie_url(url: str):
-    """Load Lottie animation from URL"""
-    try:
-        r = requests.get(url)
-        if r.status_code != 200:
-            return None
-        return r.json()
-    except:
-        return None
-
-# ==================== AI SERVICE (SIMULATED) ====================
-
-
-class AIService:
-    """
-    Simulated AI service for demonstration purposes.
-    In production, this would integrate with real AI services like OpenAI or AWS Bedrock.
-    """
-
-    @staticmethod
-    def detect_intent(text: str, language: str = "hi"):
-        """
-        Detect user intent and categorize the query.
-        Uses keyword-based detection for demo purposes.
-        
-        Args:
-            text: User query text
-            language: Language code
-            
-        Returns:
-            dict: Intent, category, and confidence
-        """
-        text_lower = text.lower()
-
-        # Intent mapping based on keywords
-        if any(word in text_lower for word in ["पेंशन", "pension", "পেনশন", "పెన్షన్"]):
-            category = "pension"
-            intent = "check_status"
-        elif any(word in text_lower for word in ["राशन", "ration", "রেশন", "రేషన్"]):
-            category = "ration"
-            intent = "information"
-        elif any(
-            word in text_lower for word in ["बिजली", "electricity", "বিদ্যুত", "విద్యుత్"]
-        ):
-            category = "electricity"
-            intent = "complaint"
-        elif any(
-            word in text_lower for word in ["किसान", "kisan", "farmer", "কৃষক", "రైతు"]
-        ):
-            category = "pmkisan"
-            intent = "check_status"
-        elif any(
-            word in text_lower for word in ["पानी", "water", "জল", "నీరు", "paani"]
-        ):
-            category = "water"
-            intent = "complaint"
-        elif any(
-            word in text_lower
-            for word in ["स्वास्थ्य", "health", "স্বাস্থ্য", "ఆరోగ్యం", "शिविर", "camp"]
-        ):
-            category = "health"
-            intent = "information"
-        else:
-            category = "general"
-            intent = "information"
-
-        # Simulate confidence score
-        confidence = random.uniform(0.82, 0.96)
-
-        return {
-            "intent": intent,
-            "category": category,
-            "confidence": confidence,
-        }
-
-    @staticmethod
-    def generate_response(query: str, intent: str, category: str, language: str = "hi"):
-        """
-        Generate AI response based on detected intent and category.
-        
-        Args:
-            query: User query
-            intent: Detected intent
-            category: Service category
-            language: Language code
-            
-        Returns:
-            dict: AI response and metadata
-        """
-        # Demo responses for each category
-        responses = {
-            "pension": {
-                "hi": "आपकी पेंशन इस महीने की 5 तारीख को आ गई है। ₹1000 की राशि आपके खाते में जमा हो गई है। अगली पेंशन अगले महीने की 5 तारीख को आएगी।",
-                "en": "Your pension was credited on the 5th of this month. ₹1000 has been deposited to your account. Next pension will arrive on 5th of next month.",
-            },
-            "ration": {
-                "hi": "आपका राशन कार्ड सक्रिय है। आप अपने नजदीकी राशन की दुकान से राशन ले सकते हैं। इस महीने का कोटा: 5 किलो चावल, 2 किलो गेहूं, 1 किलो चीनी।",
-                "en": "Your ration card is active. You can collect ration from your nearest shop. This month's quota: 5kg rice, 2kg wheat, 1kg sugar.",
-            },
-            "electricity": {
-                "hi": "आपकी शिकायत दर्ज कर ली गई है। शिकायत संख्या: ELC-2024-00457. बिजली विभाग को सूचित किया गया है। 24 घंटे में समस्या हल हो जाएगी। कॉल करें: 1800-POWER-HELP",
-                "en": "Your complaint has been registered. Complaint ID: ELC-2024-00457. Electricity department has been notified. Issue will be resolved within 24 hours. Call: 1800-POWER-HELP",
-            },
-            "pmkisan": {
-                "hi": "PM-Kisan की अगली किस्त 15 फरवरी 2024 को आएगी। ₹2000 सीधे आपके खाते में जमा होंगे। आपकी किस्त का स्टेटस: स्वीकृत। अधिक जानकारी: pmkisan.gov.in",
-                "en": "Next PM-Kisan installment will be released on February 15, 2024. ₹2000 will be directly deposited to your account. Installment status: Approved. More info: pmkisan.gov.in",
-            },
-            "water": {
-                "hi": "पानी की सप्लाई की शिकायत दर्ज की गई है। शिकायत संख्या: WTR-2024-00823. जल विभाग को तुरंत सूचित किया गया है। 48 घंटे में समाधान होगा। हेल्पलाइन: 1800-JAL-HELP",
-                "en": "Water supply complaint registered. Complaint ID: WTR-2024-00823. Water department immediately notified. Resolution within 48 hours. Helpline: 1800-JAL-HELP",
-            },
-            "health": {
-                "hi": "अगला स्वास्थ्य शिविर 15 फरवरी 2024 को आपके गाँव के प्राथमिक स्वास्थ्य केंद्र में लगेगा। समय: सुबह 10 बजे से शाम 4 बजे तक। मुफ्त जांच, दवाई और टीकाकरण उपलब्ध है।",
-                "en": "Next health camp will be on February 15, 2024 at your village Primary Health Center. Time: 10 AM to 4 PM. Free checkup, medicines, and vaccination available.",
-            },
-            "general": {
-                "hi": "आपका प्रश्न दर्ज किया गया है। हमारी टीम जल्द ही आपसे संपर्क करेगी। अधिक जानकारी के लिए 1800-GRAMA-HELP पर कॉल करें या नजदीकी ग्राम सेवा केंद्र पर जाएं।",
-                "en": "Your query has been recorded. Our team will contact you soon. For more information, call 1800-GRAMA-HELP or visit your nearest Gram Seva Kendra.",
-            },
-        }
-
-        # Get response for category and language
-        category_responses = responses.get(category, responses["general"])
-        response_text = category_responses.get(
-            language, category_responses.get("hi", category_responses["en"])
-        )
-
-        return {
-            "response": response_text,
-            "category": category,
-            "intent": intent,
-        }
-
-
-# Initialize AI service
-ai_service = AIService()
-
-# ==================== SESSION STATE ====================
-
-# Initialize session state variables
-if "query_history" not in st.session_state:
-    st.session_state.query_history = []
-
-if "last_response" not in st.session_state:
-    st.session_state.last_response = None
-
-if "offline_mode" not in st.session_state:
-    st.session_state.offline_mode = False
-
-if "demo_stats" not in st.session_state:
-    # Initialize demo statistics
-    st.session_state.demo_stats = {
-        "total_queries": 1247,
-        "total_complaints": 342,
-        "resolved_complaints": 278,
-        "pending_complaints": 64,
-        "active_users": 1124,
-        "satisfaction_rate": 4.2,
-    }
-
-if "village_pulse_data" not in st.session_state:
-    # Initialize Village Pulse Analytics data
-    st.session_state.village_pulse_data = {
-        "sentiment_score": 7.8,
-        "trending_topics": ["Pension Delay", "Water Supply", "Road Repair"],
-        "urgent_issues": 12,
-        "satisfaction_trend": "increasing",
-    }
-
-# ==================== HEADER ====================
-
-# Offline Mode Toggle
-col_offline1, col_offline2 = st.columns([6, 1])
-with col_offline2:
-    offline_mode = st.checkbox("🔌 Offline", value=st.session_state.offline_mode, key="offline_toggle")
-    st.session_state.offline_mode = offline_mode
-    if offline_mode:
-        st.caption("📵 Offline Mode")
-
-# Header with Lottie animation
-col1, col2, col3 = st.columns([1, 3, 1])
-
-with col1:
-    # Load and display Lottie animation
-    lottie_voice = load_lottie_url("https://assets5.lottiefiles.com/packages/lf20_eroqjb7w.json")
-    if lottie_voice:
-        st_lottie(lottie_voice, height=100, key="voice_animation")
-
-with col2:
-    st.markdown(
-        """
-    <div class="main-header">
-        <h1>🎤 GramaVoice</h1>
-        <p>Empowering Rural Voices Through AI • Digital India Initiative</p>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-with col3:
-    # Second animation on the right
-    lottie_ai = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_fittoow1.json")
-    if lottie_ai:
-        st_lottie(lottie_ai, height=100, key="ai_animation")
-
-# ==================== SIDEBAR ====================
-
-with st.sidebar:
-    st.markdown("### 🌐 Navigation")
-    page = st.radio(
-        "Select Page",
-        ["🏠 Home", "💬 Voice Demo", "📋 Services", "📊 Dashboard", "🧠 Village Pulse AI", "📜 History", "ℹ️ About"],
-        label_visibility="collapsed",
-    )
-
-    st.markdown("---")
-    st.markdown("### 👤 User Profile")
-    st.text("User ID: DEMO_USER_001")
-    st.text("Location: रामपुर, वाराणसी")
-    st.text("Language: हिन्दी")
-
-    st.markdown("---")
-    st.markdown("### 📞 24/7 Helpline")
-    st.info("**☎️ 1800-GRAMA-HELP**")
-    st.success("🟢 Available Now")
-
-    st.markdown("---")
-    st.markdown("### 📱 Quick Links")
-    st.markdown("- 🏛️ [E-District Portal](#)")
-    st.markdown("- 🌾 [PM-Kisan Portal](#)")
-    st.markdown("- 🍚 [Ration Card Services](#)")
-    
-    # Offline mode indicator
-    if st.session_state.offline_mode:
-        st.markdown("---")
-        st.warning("🔌 **Offline Mode Active**\nUsing cached data")
-
-# ==================== PAGE ROUTING ====================
-
-# Home Page
-if page == "🏠 Home":
-    st.markdown(
-        """
-    <div class="impact-strip">
-        🇮🇳 Built for Bharat • Voice-first governance access for every village household • No English required
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown("## Aapki Awaaz, Aapka Adhikar 🙏")
-    st.markdown(
-        "#### GramaVoice helps citizens access essential government services through natural voice conversations in their own language."
-    )
-
-    hero_col1, hero_col2 = st.columns([2, 1])
-    with hero_col1:
-        st.markdown(
-            """
-        <div class="hero-cta">
-            <h3>From confusion to confidence in one conversation.</h3>
-            <p>In many villages, people lose benefits not because they are ineligible—but because digital systems are difficult. GramaVoice turns complex portals into a simple voice experience so families can check pension, ration, PM-Kisan, and local services in minutes.</p>
-            <div class="trust-badge-row">
-                <span class="trust-badge">🎙️ Voice-first UX</span>
-                <span class="trust-badge">🗣️ Bharat language support</span>
-                <span class="trust-badge">⚡ Fast grievance routing</span>
-                <span class="trust-badge">🔒 Privacy-conscious design</span>
-            </div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with hero_col2:
-        st.markdown(
-            """
-        <div class="service-card">
-            <h3>🌍 Social Impact</h3>
-            <p>Serving rural families, senior citizens, and first-time digital users with a compassionate, low-friction interface.</p>
-        </div>
-        <div class="service-card">
-            <h3>🏛️ Public Service Ready</h3>
-            <p>Designed as a practical demo for district officials, implementation partners, and field teams.</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("### Problem → Solution → Impact")
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.markdown(
-            """
-        <div class="story-card">
-            <span class="story-tag">PROBLEM</span>
-            <h3>Digital exclusion is real</h3>
-            <p>Citizens struggle with forms, language barriers, and fragmented portals. Benefits are delayed, and trust in systems drops.</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with col2:
-        st.markdown(
-            """
-        <div class="story-card">
-            <span class="story-tag">SOLUTION</span>
-            <h3>Conversation as interface</h3>
-            <p>Users simply speak or type naturally. AI detects intent, routes service requests, and returns clear next steps instantly.</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with col3:
-        st.markdown(
-            """
-        <div class="story-card">
-            <span class="story-tag">IMPACT</span>
-            <h3>Faster access, higher dignity</h3>
-            <p>Families save trips, reduce confusion, and gain confidence in welfare systems with inclusive voice-based service delivery.</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("---")
-
-    # Live statistics
-    st.markdown("### 📊 Live Impact Statistics")
-
-    stats = st.session_state.demo_stats
-    resolution_rate = (
-        (stats["resolved_complaints"] / stats["total_complaints"]) * 100
-        if stats["total_complaints"] > 0
-        else 0
-    )
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric("Total Queries", f"{stats['total_queries']:,}", "+47 today")
-
-    with col2:
-        st.metric("Complaints Filed", f"{stats['total_complaints']:,}", "+12 today")
-
-    with col3:
-        st.metric("Resolved", f"{stats['resolved_complaints']:,}", "+8 today")
-
-    with col4:
-        st.metric("Resolution Rate", f"{resolution_rate:.1f}%", "▲ 2.3%")
-
-    st.markdown("---")
-
-    # How it works
-    st.markdown("### 🔄 How GramaVoice Works")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.markdown("#### 1️⃣ Call or Type")
-        st.write("Dial 1800-GRAMA-HELP or use the web interface")
-
-    with col2:
-        st.markdown("#### 2️⃣ Speak/Type")
-        st.write("Express your query in your native language")
-
-    with col3:
-        st.markdown("#### 3️⃣ AI Processes")
-        st.write("Smart AI detects intent and finds solution")
-
-    with col4:
-        st.markdown("#### 4️⃣ Get Answer")
-        st.write("Receive instant response and action confirmation")
-
-    st.markdown("---")
-
-    # Call to action
-    st.info(
-        "👉 **Try the Voice Demo** to see how GramaVoice helps rural citizens access government services!"
-    )
-
-# Voice Demo Page
-elif page == "💬 Voice Demo":
-    st.markdown("## 🎤 Voice Interaction Demo")
-
-    st.markdown(
-        """
-    <div class="info-box">
-        <strong>ℹ️ Demo Mode:</strong> In production, users can speak directly. 
-        For this demo, please type your query below. The AI will process it the same way as voice input.
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    col1, col2 = st.columns([2, 1])
-
-    with col1:
-        st.markdown("### Enter Your Query")
-
-        # Language selector
-        selected_language = st.selectbox(
-            "🌐 Select Language",
-            options=range(len(SUPPORTED_LANGUAGES)),
-            format_func=lambda x: f"{SUPPORTED_LANGUAGES[x]['icon'] if 'icon' in SUPPORTED_LANGUAGES[x] else '🗣️'} {SUPPORTED_LANGUAGES[x]['display']} ({SUPPORTED_LANGUAGES[x]['name']})",
-            key="voice_language",
-        )
-
-        language_code = SUPPORTED_LANGUAGES[selected_language]["code"]
-
-        # Example queries
-        st.markdown("**💡 Example Queries:**")
-        example_queries = [
-            "मेरी पेंशन कब आएगी?",
-            "PM-Kisan की अगली किस्त कब मिलेगी?",
-            "राशन कार्ड का स्टेटस क्या है?",
-            "हमारे गाँव में बिजली नहीं है",
-            "पानी की सप्लाई बंद है",
-            "स्वास्थ्य शिविर कब होगा?",
-        ]
-
-        selected_example = st.selectbox(
-            "Choose an example or type your own:", [""] + example_queries
-        )
-
-        # Text input
-        query_text = st.text_area(
-            "Type your query here:",
-            value=selected_example,
-            placeholder="Example: मेरी पेंशन कब आएगी?",
-            height=100,
-            help="Type your question in Hindi or English",
-        )
-
-        # Process button
-        if st.button("🔊 Process Query", type="primary", use_container_width=True):
-            if query_text.strip():
-                # Show loading spinner
-                with st.spinner("🤔 AI is analyzing your query..."):
-                    # Simulate processing time
-                    import time
-
-                    time.sleep(1.5)
-
-                    # Detect intent
-                    intent_result = ai_service.detect_intent(query_text, language_code)
-
-                    # Generate response
-                    response_result = ai_service.generate_response(
-                        query_text,
-                        intent_result["intent"],
-                        intent_result["category"],
-                        language_code,
-                    )
-
-                    # Store in session state
-                    st.session_state.last_response = {
-                        "query": query_text,
-                        "intent": intent_result["intent"],
-                        "category": intent_result["category"],
-                        "confidence": intent_result["confidence"],
-                        "response": response_result["response"],
-                        "timestamp": datetime.now(),
-                    }
-
-                    # Add to history
-                    st.session_state.query_history.append(
-                        st.session_state.last_response
-                    )
-
-                    # Update stats
-                    st.session_state.demo_stats["total_queries"] += 1
-                    if intent_result["intent"] == "complaint":
-                        st.session_state.demo_stats["total_complaints"] += 1
-
-                st.success("✅ Query processed successfully!")
-                st.rerun()
-            else:
-                st.warning("⚠️ Please enter a query")
-
-    with col2:
-        st.markdown("### 📊 Query Status")
-
-        if st.session_state.last_response:
-            status = "🟢 Processed"
-            category = st.session_state.last_response["category"]
-        else:
-            status = "⚪ Ready"
-            category = "N/A"
-
-        st.info(f"**Status:** {status}")
-        st.info(f"**Category:** {category.upper()}")
-
-        st.markdown("---")
-        st.markdown("### 🎯 Service Stats")
-        st.metric("Today's Queries", len(st.session_state.query_history))
-        st.metric("Your Queries", len(st.session_state.query_history))
-
-    # Display AI response
-    if st.session_state.last_response:
-        st.markdown("---")
-        st.markdown("### 🤖 AI Response")
-
-        result = st.session_state.last_response
-
-        # Metrics row
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            st.metric("Detected Intent", result["intent"].replace("_", " ").title())
-
-        with col2:
-            st.metric("Service Category", result["category"].upper())
-
-        with col3:
-            confidence = result["confidence"]
-            st.metric("Confidence", f"{confidence * 100:.1f}%")
-
-        with col4:
-            # Generate complaint ID if applicable
-            if result["intent"] == "complaint":
-                complaint_id = f"{result['category'].upper()[:3]}-{random.randint(1000, 9999)}"
-                st.metric("Complaint ID", complaint_id)
-            else:
-                st.metric("Status", "✅ Completed")
-
-        # Response card
-        st.markdown("---")
-        st.markdown("#### 💬 Your Query")
-        st.info(result["query"])
-
-        st.markdown("#### 🎯 AI Response")
-        st.markdown(
-            f"""
-        <div class="success-box">
-            <p style="margin: 0; font-size: 1.1rem; line-height: 1.6;">
-                {result['response']}
-            </p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-        # Additional actions
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if st.button("📞 Call Support", use_container_width=True):
-                st.info("☎️ Connecting to 1800-GRAMA-HELP...")
-
-        with col2:
-            if st.button("📱 SMS Update", use_container_width=True):
-                st.success("✅ SMS notification sent!")
-
-        with col3:
-            if st.button("📧 Email Receipt", use_container_width=True):
-                st.success("✅ Email sent to registered address!")
-
-# Services Page
-elif page == "📋 Services":
-    st.markdown("## 📋 Government Services")
-    st.markdown("#### Access all government services through GramaVoice")
-
-    st.markdown("---")
-
-    # Display service cards in grid
-    cols = st.columns(3)
-
-    for idx, service in enumerate(SERVICE_CATEGORIES):
-        with cols[idx % 3]:
-            st.markdown(
-                f"""
-            <div class="service-card">
-                <h3>{service['icon']} {service['name']}</h3>
-                <p>{service['description']}</p>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-            if st.button(
-                f"Access {service['name']}", key=f"service_{service['id']}", use_container_width=True
-            ):
-                st.info(f"🔄 Loading {service['name']} service portal...")
-
-    st.markdown("---")
-
-    # Service statistics
-    st.markdown("### 📊 Service Usage This Month")
-
-    # Generate demo data
-    service_data = []
-    for service in SERVICE_CATEGORIES:
-        service_data.append(
+TRANSLATIONS = {
+    "en": {
+        "tagline": "Voice-first governance for every village",
+        "language": "Language",
+        "refresh": "Auto refresh live stats",
+        "offline": "Offline mode",
+        "fallback": "Mic blocked? Type your message below.",
+        "query": "Your message",
+        "process": "Process request",
+        "status": "System status",
+    },
+    "hi": {
+        "tagline": "हर गाँव के लिए आवाज़ आधारित सरकारी सहायता",
+        "language": "भाषा",
+        "refresh": "लाइव आँकड़े ऑटो रिफ्रेश",
+        "offline": "ऑफ़लाइन मोड",
+        "fallback": "माइक बंद है? नीचे अपना सवाल लिखें।",
+        "query": "आपका संदेश",
+        "process": "अनुरोध प्रोसेस करें",
+        "status": "सिस्टम स्थिति",
+    },
+}
+
+SERVICES = {
+    "pension": {"title": "Pension", "icon": "💰", "owner": "Social Welfare"},
+    "pmkisan": {"title": "PM-Kisan", "icon": "🌾", "owner": "Agriculture Dept"},
+    "ration": {"title": "Ration", "icon": "🍚", "owner": "Food Supply"},
+    "health": {"title": "Health Camps", "icon": "🏥", "owner": "Health Dept"},
+    "electricity": {"title": "Electricity", "icon": "⚡", "owner": "Power Board"},
+    "water": {"title": "Water Supply", "icon": "💧", "owner": "Water Dept"},
+    "general": {"title": "General Help", "icon": "🧭", "owner": "Citizen Desk"},
+}
+
+KEYWORDS = {
+    "pension": ["pension", "पेंशन", "old age", "वृद्धा"],
+    "pmkisan": ["kisan", "farmer", "किसान", "pm किसान", "pm-kisan"],
+    "ration": ["ration", "राशन", "card", "पीडीएस"],
+    "health": ["health", "स्वास्थ्य", "hospital", "camp", "टीका"],
+    "electricity": ["electricity", "बिजली", "power", "लाइन", "light"],
+    "water": ["water", "पानी", "tap", "जल"],
+}
+
+RESPONSES = {
+    "en": {
+        "pension": "Your pension is active. Last transfer: ₹1,000 on 05 this month. Next expected disbursement: next month, week 1.",
+        "pmkisan": "PM-Kisan status is approved. Next installment ₹2,000 is scheduled in the next cycle.",
+        "ration": "Ration card is valid and eligible for this month's quota. Carry Aadhaar at FPS collection.",
+        "health": "Nearest health camp is this Friday, 10:00 AM at Panchayat Bhavan. Free check-up and medicine support.",
+        "electricity": "Power complaint registered successfully. Estimated resolution time: 24 hours. Keep complaint ID for follow-up.",
+        "water": "Water supply complaint logged. Local line inspection is planned in 48 hours.",
+        "general": "We can help with pension, PM-Kisan, ration, health camps, electricity, and water services.",
+    },
+    "hi": {
+        "pension": "आपकी पेंशन सक्रिय है। पिछला भुगतान: इस महीने की 5 तारीख को ₹1,000 जमा हुए।",
+        "pmkisan": "PM-किसान स्थिति स्वीकृत है। अगली ₹2,000 किस्त अगले चक्र में आएगी।",
+        "ration": "राशन कार्ड सक्रिय है और इस महीने का कोटा उपलब्ध है।",
+        "health": "नज़दीकी स्वास्थ्य शिविर इस शुक्रवार सुबह 10 बजे पंचायत भवन में है।",
+        "electricity": "बिजली शिकायत दर्ज हो गई है। समाधान समय: लगभग 24 घंटे।",
+        "water": "पानी सप्लाई शिकायत दर्ज की गई है। 48 घंटे में लाइन जांच होगी।",
+        "general": "हम पेंशन, PM-किसान, राशन, स्वास्थ्य, बिजली और पानी सेवाओं में मदद करते हैं।",
+    },
+}
+
+
+@st.cache_data(show_spinner=False)
+def load_demo_history() -> pd.DataFrame:
+    now = datetime.now()
+    records = []
+    intents = ["status", "complaint", "information"]
+    cats = ["pension", "pmkisan", "ration", "health", "electricity", "water"]
+    villages = ["Rampur", "Nandgaon", "Sundarpur", "Bhagwanpur", "Kheda", "Devli"]
+    for i in range(180):
+        ts = now - timedelta(hours=i * 4)
+        cat = random.choice(cats)
+        confidence = round(random.uniform(0.72, 0.98), 2)
+        records.append(
             {
-                "Service": service["name"],
-                "Queries": random.randint(80, 250),
-                "Avg Response Time": f"{random.randint(2, 15)} min",
-                "Satisfaction": f"{random.uniform(4.0, 4.9):.1f}/5.0",
+                "timestamp": ts,
+                "citizen_id": f"GV-{1000+i}",
+                "village": random.choice(villages),
+                "category": cat,
+                "intent": random.choice(intents),
+                "confidence": confidence,
+                "channel": random.choice(["voice", "text"]),
+                "status": random.choice(["Resolved", "Open", "In Progress"]),
             }
         )
+    return pd.DataFrame(records)
 
-    df = pd.DataFrame(service_data)
-    st.dataframe(df, use_container_width=True, hide_index=True)
 
-# Dashboard Page
-elif page == "📊 Dashboard":
-    st.markdown("## 📊 Analytics Dashboard")
-    st.markdown("#### Real-time insights and performance metrics")
+def init_state() -> None:
+    defaults = {
+        "lang": "en",
+        "offline_mode": False,
+        "query_text": "",
+        "voice_result": "",
+        "last_result": None,
+        "selected_service": None,
+        "history": load_demo_history().copy(),
+        "logs": [],
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
-    st.markdown("---")
 
-    # Key metrics
-    stats = st.session_state.demo_stats
-    resolution_rate = (
-        (stats["resolved_complaints"] / stats["total_complaints"]) * 100
-        if stats["total_complaints"] > 0
-        else 0
-    )
+def detect_intent(text: str):
+    txt = text.lower().strip()
+    if not txt:
+        return {"intent": "unknown", "category": "general", "confidence": 0.0, "why": "Empty input"}
+    for category, words in KEYWORDS.items():
+        for word in words:
+            if word in txt:
+                intent = "complaint" if category in ["electricity", "water"] else "status"
+                conf = min(0.99, 0.75 + len(word) / 20)
+                return {
+                    "intent": intent,
+                    "category": category,
+                    "confidence": round(conf, 2),
+                    "why": f"Matched keyword '{word}'",
+                }
+    return {"intent": "information", "category": "general", "confidence": 0.62, "why": "No known keyword match"}
 
-    col1, col2, col3, col4 = st.columns(4)
 
-    with col1:
-        st.markdown(
-            f"""
-        <div class="stats-card">
-            <p class="stats-number">{stats['total_queries']:,}</p>
-            <p class="stats-label">Total Queries</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
+def route_response(category: str, lang: str) -> str:
+    lang_key = "hi" if lang == "hi" else "en"
+    return RESPONSES.get(lang_key, RESPONSES["en"]).get(category, RESPONSES[lang_key]["general"])
+
+
+def add_log(item: dict) -> None:
+    st.session_state.logs.append(item)
+    st.session_state.logs = st.session_state.logs[-250:]
+
+
+def add_to_history(result: dict) -> None:
+    row = {
+        "timestamp": datetime.now(),
+        "citizen_id": f"GV-{random.randint(2000,9999)}",
+        "village": random.choice(["Rampur", "Nandgaon", "Sundarpur", "Devli"]),
+        "category": result["category"],
+        "intent": result["intent"],
+        "confidence": result["confidence"],
+        "channel": result["channel"],
+        "status": "Resolved" if result["confidence"] > 0.8 else "In Progress",
+    }
+    st.session_state.history = pd.concat([pd.DataFrame([row]), st.session_state.history], ignore_index=True)
+
+
+def voice_component(lang_code: str):
+    component_id = f"voice_{lang_code}"
+    html = f"""
+    <div style='background:#fff;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-family:Arial'>
+      <div style='display:flex;gap:8px;flex-wrap:wrap'>
+        <button id='start' style='padding:10px 14px;border-radius:10px;border:none;background:#2563eb;color:#fff;font-weight:700'>🎙️ Start Recording</button>
+        <button id='stop' style='padding:10px 14px;border-radius:10px;border:1px solid #94a3b8;background:#fff;color:#0f172a;font-weight:700'>⏹ Stop Recording</button>
+      </div>
+      <p id='status' style='font-size:14px;margin:8px 0;color:#334155'>Status: idle</p>
+      <textarea id='transcript' style='width:100%;min-height:82px;border:1px solid #cbd5e1;border-radius:10px;padding:8px' placeholder='Speech transcript will appear here'></textarea>
+    </div>
+    <script>
+      const lang = "{lang_code}" === "hi" ? "hi-IN" : "en-IN";
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const statusEl = document.getElementById('status');
+      const transcriptEl = document.getElementById('transcript');
+      let recognition = null;
+      let finalText = "";
+      function pushUpdate(st, txt) {{
+        const payload = JSON.stringify({{status: st, text: txt || transcriptEl.value || ""}});
+        window.parent.Streamlit.setComponentValue(payload);
+      }}
+
+      if (!SR) {{
+        statusEl.innerText = "Status: Web Speech API not supported";
+        pushUpdate("unsupported", "");
+      }} else {{
+        recognition = new SR();
+        recognition.lang = lang;
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.onstart = () => {{ statusEl.innerText = "Status: recording"; pushUpdate("recording", transcriptEl.value); }};
+        recognition.onerror = (e) => {{ statusEl.innerText = "Status: error - " + e.error; pushUpdate("error", transcriptEl.value); }};
+        recognition.onend = () => {{ statusEl.innerText = "Status: stopped"; pushUpdate("stopped", transcriptEl.value); }};
+        recognition.onresult = (event) => {{
+          let interim = "";
+          for (let i = event.resultIndex; i < event.results.length; ++i) {{
+            const t = event.results[i][0].transcript;
+            if (event.results[i].isFinal) finalText += t + " "; else interim += t;
+          }}
+          transcriptEl.value = (finalText + interim).trim();
+          pushUpdate("listening", transcriptEl.value);
+        }};
+
+        document.getElementById('start').onclick = () => {{
+          try {{ finalText = transcriptEl.value ? transcriptEl.value + " " : ""; recognition.start(); }} catch(e) {{ statusEl.innerText = "Status: already recording"; }}
+        }};
+        document.getElementById('stop').onclick = () => {{
+          try {{ recognition.stop(); pushUpdate("stopped", transcriptEl.value); }} catch(e) {{ pushUpdate("error", transcriptEl.value); }}
+        }};
+      }}
+    </script>
+    """
+    raw = components.html(html, height=235, key=component_id)
+    if raw:
+        try:
+            return json.loads(raw)
+        except Exception:
+            return {"status": "error", "text": ""}
+    return None
+
+
+def render_home(t):
+    if st.checkbox(t["refresh"], value=True):
+        components.html("<script>setTimeout(function(){window.parent.location.reload();},15000);</script>",height=0)
+
+    hist = st.session_state.history
+    total = len(hist)
+    resolved = int((hist["status"] == "Resolved").sum())
+    complaints = int(hist["intent"].eq("complaint").sum())
+    conf = round(float(hist["confidence"].mean() * 100), 1)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Interactions", f"{total}")
+    c2.metric("Complaints", f"{complaints}")
+    c3.metric("Resolved", f"{resolved}")
+    c4.metric("Avg AI Confidence", f"{conf}%")
+
+    st.markdown("### Live category load")
+    grp = hist.groupby("category").size().reset_index(name="count")
+    fig = px.bar(grp, x="category", y="count", color="category", height=320)
+    fig.update_layout(margin=dict(l=8, r=8, t=20, b=8), showlegend=False)
+    st.plotly_chart(fig, width="stretch")
+
+
+def render_voice_demo(t):
+    st.markdown("### Voice + Text Input")
+    vcol, txtcol = st.columns([1.25, 1])
+    with vcol:
+        voice_state = voice_component(st.session_state.lang)
+        if voice_state and voice_state.get("text"):
+            st.session_state.voice_result = voice_state.get("text", "")
+            st.info(f"Voice status: {voice_state.get('status','unknown')}")
+
+    with txtcol:
+        st.caption(t["fallback"])
+        incoming = st.session_state.voice_result or st.session_state.query_text
+        query = st.text_area(
+            t["query"],
+            value=incoming,
+            key="voice_query_area",
+            height=150,
+            placeholder="Ask for pension, ration, PM-Kisan, electricity, water, etc.",
         )
+        st.session_state.query_text = query
 
-    with col2:
-        st.markdown(
-            f"""
-        <div class="stats-card">
-            <p class="stats-number">{stats['total_complaints']:,}</p>
-            <p class="stats-label">Total Complaints</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        if st.button(t["process"], width="stretch"):
+            if not query.strip():
+                st.warning("Please provide voice or typed input.")
+                return
+            with st.spinner("Analyzing and routing your request..."):
+                try:
+                    intent = detect_intent(query)
+                    response = route_response(intent["category"], st.session_state.lang)
+                    result = {
+                        "query": query,
+                        "intent": intent["intent"],
+                        "category": intent["category"],
+                        "confidence": intent["confidence"],
+                        "explanation": intent["why"],
+                        "response": response,
+                        "channel": "voice" if st.session_state.voice_result else "text",
+                        "time": datetime.now(),
+                    }
+                    st.session_state.last_result = result
+                    add_to_history(result)
+                    add_log(result)
+                except Exception as e:
+                    st.error(f"Request failed safely: {e}")
 
-    with col3:
-        st.markdown(
-            f"""
-        <div class="stats-card">
-            <p class="stats-number">{stats['resolved_complaints']:,}</p>
-            <p class="stats-label">Resolved</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+    if st.session_state.last_result:
+        r = st.session_state.last_result
+        st.markdown("<div class='glass'>", unsafe_allow_html=True)
+        st.markdown(f"**Intent:** `{r['intent']}` | **Service:** `{r['category']}` | **Confidence:** `{round(r['confidence']*100,1)}%`")
+        st.markdown(f"**Why this route?** {r['explanation']}")
+        st.success(r["response"])
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    with col4:
-        st.markdown(
-            f"""
-        <div class="stats-card">
-            <p class="stats-number">{resolution_rate:.1f}%</p>
-            <p class="stats-label">Resolution Rate</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
 
-    st.markdown("---")
+def render_services():
+    st.markdown("### Government Service Panels")
+    cols = st.columns(3)
+    keys = list(SERVICES.keys())[:-1]
+    for idx, service_key in enumerate(keys):
+        info = SERVICES[service_key]
+        with cols[idx % 3]:
+            st.markdown(f"<div class='glass'><h4>{info['icon']} {info['title']}</h4><p>Managed by {info['owner']}</p>", unsafe_allow_html=True)
+            if st.button(f"Open {info['title']}", key=f"open_{service_key}"):
+                st.session_state.selected_service = service_key
+            st.markdown("</div>", unsafe_allow_html=True)
 
-    # Charts
-    col1, col2 = st.columns(2)
+    selected = st.session_state.selected_service
+    if selected:
+        data = SERVICES[selected]
+        st.markdown("<div class='glass'>", unsafe_allow_html=True)
+        st.subheader(f"{data['icon']} {data['title']} Service Panel")
+        st.write(f"Department: **{data['owner']}**")
+        st.write("Status: 🟢 Operational | Avg response SLA: 4.2h")
+        st.write("Information: Document checks, application status, escalation contacts, and nearest help center are available.")
+        if st.button("Create sample service ticket", key="mk_ticket"):
+            st.success(f"Ticket created for {data['title']} at {datetime.now().strftime('%H:%M:%S')}")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    with col1:
-        st.markdown("### 📈 Complaints by Category")
 
-        # Generate demo data
-        categories = [s["name"] for s in SERVICE_CATEGORIES]
-        complaint_counts = [random.randint(20, 80) for _ in SERVICE_CATEGORIES]
+def render_dashboard():
+    hist = st.session_state.history.copy()
+    st.markdown("### Analytics Dashboard")
+    days = st.selectbox("Time filter", [7, 15, 30, 60], index=2)
+    cutoff = datetime.now() - timedelta(days=days)
+    hist = hist[hist["timestamp"] >= cutoff]
 
-        fig, ax = plt.subplots(figsize=(8, 6))
-        colors = plt.cm.Blues(np.linspace(0.4, 0.8, len(categories)))
-        ax.pie(
-            complaint_counts,
-            labels=categories,
-            autopct="%1.1f%%",
-            startangle=90,
-            colors=colors,
-        )
-        ax.axis("equal")
-        st.pyplot(fig)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Interactions", len(hist))
+    c2.metric("Unique Villages", hist["village"].nunique())
+    c3.metric("Resolution %", f"{(hist['status'].eq('Resolved').mean()*100):.1f}%")
 
-    with col2:
-        st.markdown("### 📊 Queries by Service")
+    trend = hist.copy()
+    trend["day"] = trend["timestamp"].dt.date
+    daily = trend.groupby("day").size().reset_index(name="requests")
+    fig1 = px.line(daily, x="day", y="requests", markers=True, height=300, title="Requests Over Time")
+    st.plotly_chart(fig1, width="stretch")
 
-        # Generate demo data
-        query_counts = [random.randint(50, 200) for _ in SERVICE_CATEGORIES]
+    cat = hist.groupby("category").size().reset_index(name="count")
+    fig2 = go.Figure(data=[go.Pie(labels=cat["category"], values=cat["count"], hole=.5)])
+    fig2.update_layout(height=320, title="Service Mix")
+    st.plotly_chart(fig2, width="stretch")
 
-        fig, ax = plt.subplots(figsize=(8, 6))
-        bars = ax.barh(categories, query_counts, color="#3b82f6")
-        ax.set_xlabel("Number of Queries")
-        ax.set_title("Service Usage Distribution")
 
-        # Add value labels on bars
-        for i, bar in enumerate(bars):
-            width = bar.get_width()
-            ax.text(
-                width,
-                bar.get_y() + bar.get_height() / 2,
-                f"{int(width)}",
-                ha="left",
-                va="center",
-                fontweight="bold",
-            )
+def render_history():
+    st.markdown("### Query History")
+    df = st.session_state.history.copy()
 
-        st.pyplot(fig)
+    q = st.text_input("Search by village / citizen / category")
+    status_filter = st.multiselect("Filter status", options=sorted(df["status"].unique()), default=list(sorted(df["status"].unique())))
+    if q:
+        ql = q.lower()
+        df = df[
+            df["village"].str.lower().str.contains(ql)
+            | df["citizen_id"].str.lower().str.contains(ql)
+            | df["category"].str.lower().str.contains(ql)
+        ]
+    if status_filter:
+        df = df[df["status"].isin(status_filter)]
 
-    st.markdown("---")
+    per_page = st.selectbox("Rows per page", [10, 20, 30], index=1)
+    total_pages = max(1, math.ceil(len(df) / per_page))
+    page_no = st.number_input("Page", min_value=1, max_value=total_pages, value=1, step=1)
+    start = (page_no - 1) * per_page
+    end = start + per_page
 
-    # Daily trend
-    st.markdown("### 📅 Query Trend (Last 30 Days)")
+    st.dataframe(df.iloc[start:end], width="stretch", hide_index=True)
+    st.caption(f"Showing {start + 1}-{min(end, len(df))} of {len(df)} rows")
 
-    # Generate demo data
-    dates = [datetime.now() - timedelta(days=x) for x in range(30)]
-    dates.reverse()
-    query_counts_daily = [random.randint(30, 60) for _ in range(30)]
 
-    fig, ax = plt.subplots(figsize=(12, 4))
-    ax.plot(dates, query_counts_daily, marker="o", linewidth=2, color="#3b82f6")
-    ax.fill_between(dates, query_counts_daily, alpha=0.3, color="#3b82f6")
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Number of Queries")
-    ax.set_title("Daily Query Volume")
-    ax.grid(True, alpha=0.3)
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    st.pyplot(fig)
-
-    st.markdown("---")
-
-    # Additional metrics
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.markdown("### 👥 Active Users")
-        st.metric("Total Users", f"{stats['active_users']:,}", "+23 this week")
-
-    with col2:
-        st.markdown("### ⭐ Satisfaction Score")
-        st.metric("Avg Rating", f"{stats['satisfaction_rate']}/5.0", "▲ 0.2")
-
-    with col3:
-        st.markdown("### ⏱️ Avg Response Time")
-        st.metric("Response Time", "8.4 min", "▼ 1.2 min")
-
-# Village Pulse AI Page
-elif page == "🧠 Village Pulse AI":
-    st.markdown("## 🧠 Village Pulse AI Analytics")
-    st.markdown("#### AI-powered insights into village sentiment and needs")
-    
-    st.markdown("---")
-    
-    # Pulse Overview Card
-    pulse_data = st.session_state.village_pulse_data
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.markdown(
-            f"""
-        <div class="pulse-card">
-            <h3 style="color: #10b981; margin: 0;">😊 {pulse_data['sentiment_score']}/10</h3>
-            <p style="margin: 0.5rem 0 0 0; color: #64748b;">Village Sentiment</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-    
-    with col2:
-        st.markdown(
-            f"""
-        <div class="pulse-card">
-            <h3 style="color: #ef4444; margin: 0;">⚠️ {pulse_data['urgent_issues']}</h3>
-            <p style="margin: 0.5rem 0 0 0; color: #64748b;">Urgent Issues</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-    
-    with col3:
-        trend_emoji = "📈" if pulse_data['satisfaction_trend'] == "increasing" else "📉"
-        st.markdown(
-            f"""
-        <div class="pulse-card">
-            <h3 style="color: #2563eb; margin: 0;">{trend_emoji} {pulse_data['satisfaction_trend'].title()}</h3>
-            <p style="margin: 0.5rem 0 0 0; color: #64748b;">Satisfaction Trend</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-    
-    with col4:
-        st.markdown(
-            f"""
-        <div class="pulse-card">
-            <h3 style="color: #8b5cf6; margin: 0;">🔥 {len(pulse_data['trending_topics'])}</h3>
-            <p style="margin: 0.5rem 0 0 0; color: #64748b;">Trending Topics</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-    
-    st.markdown("---")
-    
-    # Trending Topics Section
-    st.markdown("### 🔥 Trending Topics")
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown(
-            """
-        <div class="glass-card">
-            <h4>Most Discussed Issues</h4>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-        
-        for idx, topic in enumerate(pulse_data['trending_topics'], 1):
-            importance = random.randint(60, 95)
-            st.markdown(f"**{idx}. {topic}**")
-            st.progress(importance / 100)
-            st.caption(f"Discussion intensity: {importance}%")
-            st.markdown("")
-    
-    with col2:
-        st.markdown(
-            """
-        <div class="info-box">
-            <strong>💡 AI Insights</strong><br><br>
-            • Pension queries increased by 23% this week<br><br>
-            • Water supply issues peak on Tuesdays<br><br>
-            • High satisfaction with PM-Kisan responses
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-    
-    st.markdown("---")
-    
-    # Sentiment Analysis
-    st.markdown("### 📊 Sentiment Analysis Over Time")
-    
-    # Generate demo sentiment data
-    dates = [datetime.now() - timedelta(days=x) for x in range(14)]
-    dates.reverse()
-    sentiment_scores = [random.uniform(6.5, 8.5) for _ in range(14)]
-    
-    fig, ax = plt.subplots(figsize=(12, 4))
-    ax.plot(dates, sentiment_scores, marker="o", linewidth=2, color="#10b981", label="Sentiment Score")
-    ax.fill_between(dates, sentiment_scores, alpha=0.3, color="#10b981")
-    ax.axhline(y=7.0, color='#ef4444', linestyle='--', label='Target Threshold')
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Sentiment Score (0-10)")
-    ax.set_title("Village Sentiment Trend (Last 2 Weeks)")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    st.pyplot(fig)
-    
-    st.markdown("---")
-    
-    # AI Recommendations
-    st.markdown("### 🎯 AI-Powered Recommendations")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown(
-            """
-        <div class="success-box">
-            <strong>✅ Immediate Actions</strong><br><br>
-            1. Address 12 urgent water supply complaints<br>
-            2. Expedite 8 pending pension queries<br>
-            3. Schedule health camp in next 7 days
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-    
-    with col2:
-        st.markdown(
-            """
-        <div class="info-box">
-            <strong>📋 Preventive Measures</strong><br><br>
-            1. Proactive communication about ration distribution<br>
-            2. Weekly updates on PM-Kisan status<br>
-            3. Create FAQ for common electricity issues
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-    
-    st.markdown("---")
-    
-    # Predictive Alerts
-    st.markdown("### 🔮 Predictive Alerts")
-    
-    st.warning("⚠️ **Model predicts**: 30% increase in pension queries next week (Government payment cycle)")
-    st.info("💡 **Recommendation**: Prepare automated responses and increase helpline capacity")
-
-# History Page
-elif page == "📜 History":
-    st.markdown("## 📜 Query History")
-    st.markdown("#### Your recent interactions with GramaVoice")
-
-    st.markdown("---")
-
-    if st.session_state.query_history:
-        st.success(
-            f"✅ Found {len(st.session_state.query_history)} queries in your history"
-        )
-
-        # Display history in reverse chronological order
-        for idx, item in enumerate(reversed(st.session_state.query_history)):
-            with st.expander(
-                f"Query #{len(st.session_state.query_history) - idx}: {item['query'][:50]}...",
-                expanded=(idx == 0),
-            ):
-                col1, col2 = st.columns([3, 1])
-
-                with col1:
-                    st.markdown(f"**Query:** {item['query']}")
-                    st.markdown(f"**Response:** {item['response']}")
-
-                with col2:
-                    st.markdown(f"**Intent:** {item['intent']}")
-                    st.markdown(f"**Category:** {item['category']}")
-                    st.markdown(
-                        f"**Confidence:** {item['confidence'] * 100:.1f}%"
-                    )
-                    st.markdown(
-                        f"**Time:** {item['timestamp'].strftime('%H:%M:%S')}"
-                    )
-
-        st.markdown("---")
-
-        # Clear history button
-        if st.button("🗑️ Clear History", use_container_width=True):
-            st.session_state.query_history = []
-            st.success("✅ History cleared!")
-            st.rerun()
-
-    else:
-        st.info("📭 No query history yet. Try the Voice Demo to get started!")
-
-        if st.button("▶️ Go to Voice Demo", type="primary", use_container_width=True):
-            st.switch_page("app.py")
-
-# About Page
-elif page == "ℹ️ About":
-    st.markdown("## ℹ️ About GramaVoice")
-    st.markdown("### A startup-style public service platform built for Bharat")
-
+def render_about():
+    st.markdown("### About GramaVoice")
+    st.markdown("<div class='glass'>", unsafe_allow_html=True)
     st.markdown(
         """
-    <div class="about-section">
-        <h4>🌾 Why GramaVoice exists</h4>
-        <p>In rural India, millions of people are eligible for government schemes but still remain underserved due to literacy gaps, language barriers, and complex digital workflows. GramaVoice reimagines access: no forms-first friction, no app anxiety—just a trusted conversation.</p>
-    </div>
-    """,
-        unsafe_allow_html=True,
+**Problem**: Rural citizens face friction in accessing government services due to language, literacy, and process barriers.  
+**Solution**: GramaVoice delivers a bilingual, voice-first AI interface with service routing, confidence scoring, and interaction analytics.  
+**Traction-ready value**: Faster grievance handling, higher trust, and digital inclusion at scale.  
+**For judges/investors/government**: Cloud-safe architecture, no device-level dependencies, and immediate deployment feasibility on Streamlit Cloud.
+"""
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+init_state()
+t = TRANSLATIONS[st.session_state.lang]
+
+with st.sidebar:
+    st.markdown("## 🎙️ GramaVoice")
+    lang = st.radio(t["language"], ["en", "hi"], format_func=lambda x: "English" if x == "en" else "हिन्दी")
+    st.session_state.lang = lang
+    t = TRANSLATIONS[lang]
+    st.session_state.offline_mode = st.toggle(t["offline"], value=st.session_state.offline_mode)
+    page = st.radio(
+        "Navigate",
+        ["Home", "Voice Demo", "Services", "Dashboard", "History", "About"],
     )
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown(
-            """
-        <div class="about-section">
-            <h4>🎯 Mission</h4>
-            <p>Enable every citizen—especially rural families, elders, and first-time users—to access services with dignity, clarity, and confidence.</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with col2:
-        st.markdown(
-            """
-        <div class="about-section">
-            <h4>🚀 Vision</h4>
-            <p>To become India’s most trusted voice layer for public services, where governance feels human, responsive, and local-language first.</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("### Product Story")
-
-    st.markdown(
-        """
-    <div class="about-section">
-        <h4>Problem → Product → Proof</h4>
-        <p><strong>Problem:</strong> People often travel long distances, wait in lines, and still return without answers.</p>
-        <p><strong>Product:</strong> GramaVoice uses voice interaction and intent detection to simplify pension, ration, PM-Kisan, health, electricity, and water queries.</p>
-        <p><strong>Proof:</strong> The pilot demo already shows strong service engagement, complaint tracking, and measurable satisfaction uplift.</p>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown("### Core Trust Signals")
-    st.markdown(
-        """
-    <div class="about-section">
-        <div class="trust-badge-row">
-            <span class="trust-badge">🛡️ Secure by design</span>
-            <span class="trust-badge">🏛️ Gov-service aligned</span>
-            <span class="trust-badge">📞 24x7 support mindset</span>
-            <span class="trust-badge">🧠 AI with explainable intent</span>
-            <span class="trust-badge">📱 Mobile-friendly interface</span>
-        </div>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    stats = st.session_state.demo_stats
-    resolution_rate = (
-        (stats["resolved_complaints"] / stats["total_complaints"]) * 100
-        if stats["total_complaints"] > 0
-        else 0
-    )
-
-    st.markdown("### Snapshot of Current Impact")
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        st.metric("Queries Processed", f"{stats['total_queries']:,}")
-    with m2:
-        st.metric("Complaints Logged", f"{stats['total_complaints']:,}")
-    with m3:
-        st.metric("Resolution Rate", f"{resolution_rate:.1f}%")
-    with m4:
-        st.metric("User Satisfaction", f"{stats['satisfaction_rate']}/5.0")
-
-    st.markdown(
-        """
-    <div class="impact-strip" style="margin-top: 1rem;">
-        ❤️ Built with empathy for Bharat • Designed for citizens, administrators, and last-mile governance teams
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-# ==================== FOOTER ====================
-
-st.markdown("---")
 st.markdown(
     f"""
-<div style="text-align: center; color: #64748b; padding: 2rem;">
-    <p><strong>{APP_NAME}</strong> - Empowering Rural Voices | AI for Bharat Initiative</p>
-    <p>Making government services accessible to India's 242 million non-literate citizens</p>
-    <p style="font-size: 0.9rem; margin-top: 1rem;">
-        Version {APP_VERSION} | © 2024 GramaVoice | Ministry of Rural Development, Government of India
-    </p>
+<div class='hero'>
+  <h1>GramaVoice</h1>
+  <p>{t['tagline']}</p>
 </div>
 """,
     unsafe_allow_html=True,
 )
+
+status_text = "🟢 Online" if not st.session_state.offline_mode else "🟡 Offline mode with cached data"
+st.markdown(f"<div class='glass'><b>{t['status']}:</b> {status_text}</div>", unsafe_allow_html=True)
+
+try:
+    if page == "Home":
+        render_home(t)
+    elif page == "Voice Demo":
+        render_voice_demo(t)
+    elif page == "Services":
+        render_services()
+    elif page == "Dashboard":
+        render_dashboard()
+    elif page == "History":
+        render_history()
+    else:
+        render_about()
+except Exception as page_error:
+    st.error(f"Graceful failure: {page_error}")
+    st.info("The app is still running. Please switch modules from sidebar.")

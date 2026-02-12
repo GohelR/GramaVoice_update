@@ -1,21 +1,3 @@
-# Cloud-supported Python packages for Streamlit Cloud deployment
-# These packages are safe and do not require system-level dependencies
-
-# Frontend Framework
-streamlit
-streamlit-lottie
-
-# Data Processing & Visualization
-pandas
-numpy
-matplotlib
-
-# HTTP Requests
-requests
-
-# AI Integration (Optional - requires API key)
-openai
-
-# Utilities
-python-dotenv
-plotly
+streamlit>=1.37
+pandas>=2.2
+plotly>=5.22
