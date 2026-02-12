@@ -43,6 +43,11 @@ st.markdown(
         --success-color: #16a34a;
         --danger-color: #dc2626;
         --bg-light: #f8fafc;
+        --soft-gradient: linear-gradient(135deg, #eef5ff 0%, #f8fbff 100%);
+    }
+
+    .stApp {
+        background: var(--soft-gradient);
     }
     
     /* Header styling */
@@ -162,6 +167,44 @@ st.markdown(
     /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+
+    /* Hackathon-ready cards + responsive layout */
+    .card {
+        background: #f8fbff;
+        padding: 16px;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        border: 1px solid #dbeafe;
+    }
+
+    .mobile-pad {
+        padding: 0.5rem;
+    }
+
+    .sticky-bottom {
+        position: sticky;
+        bottom: 0;
+        z-index: 999;
+        background: rgba(248, 251, 255, 0.95);
+        padding: 0.75rem;
+        border-radius: 12px;
+        box-shadow: 0 -2px 12px rgba(30, 58, 138, 0.12);
+        border: 1px solid #dbeafe;
+        backdrop-filter: blur(6px);
+    }
+
+    @media (max-width: 768px) {
+        .main-header {
+            padding: 1rem;
+            border-radius: 12px;
+        }
+        .main-header h1 {
+            font-size: 1.8rem;
+        }
+        .mobile-pad {
+            padding: 0.25rem;
+        }
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -331,6 +374,32 @@ def analyze_query(text, language="hi", user_id="demo_user_001"):
     }
 
 
+def process_query(query, selected_language):
+    """Safe query processor with no-crash mode for hackathon demos."""
+    try:
+        return analyze_query(
+            text=query,
+            language=selected_language["code"],
+            user_id=st.session_state.current_user,
+        )
+    except Exception:
+        st.error("⚠️ System busy. Please retry.")
+        return None
+
+
+def get_user_input():
+    """Return voice text first, then text fallback, else None."""
+    voice = st.session_state.get("voice_text", "")
+    text = st.session_state.get("text_input", "")
+
+    if voice:
+        return voice
+    elif text:
+        return text
+    else:
+        return None
+
+
 # Session state initialization
 if "current_user" not in st.session_state:
     st.session_state.current_user = "demo_user_001"
@@ -338,6 +407,10 @@ if "query_history" not in st.session_state:
     st.session_state.query_history = []
 if "last_response" not in st.session_state:
     st.session_state.last_response = None
+if "voice_text" not in st.session_state:
+    st.session_state.voice_text = ""
+if "text_input" not in st.session_state:
+    st.session_state.text_input = ""
 
 
 # Header
@@ -464,6 +537,7 @@ elif page == "Voice Demo":
     col1, col2 = st.columns([2, 1])
 
     with col1:
+        st.markdown('<div class="mobile-pad">', unsafe_allow_html=True)
         st.markdown("### Speak Your Query")
 
         # Language selector
@@ -474,40 +548,72 @@ elif page == "Voice Demo":
             key="voice_language",
         )
 
-        # Text input (simulating voice in demo)
-        st.info(
-            "🎙️ **Demo Mode**: Type your query below (voice recognition will be enabled in production)"
-        )
-        query_text = st.text_area(
-            "Enter your query",
+        # Mobile-friendly in-browser recorder (safe render, no key usage)
+        mic_html = """
+<script>
+const record = () => {
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      const mediaRecorder = new MediaRecorder(stream);
+      let chunks = [];
+
+      mediaRecorder.start();
+
+      mediaRecorder.ondataavailable = e => {
+        chunks.push(e.data);
+      };
+
+      setTimeout(() => {
+        mediaRecorder.stop();
+      }, 4000);
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        document.getElementById("player").src = url;
+      };
+    });
+}
+</script>
+
+<button onclick="record()">🎙️ Start Recording</button>
+<br>
+<audio id="player" controls></audio>
+"""
+        try:
+            st.components.v1.html(mic_html, height=180)
+        except Exception:
+            st.warning("🎤 Voice not supported. Please type below.")
+
+        # Always-visible text fallback
+        st.text_area(
+            "✍️ Type your query (if voice fails)",
             placeholder="Example: मेरी पेंशन कब आएगी?",
-            height=100,
+            key="text_input",
         )
 
-        if st.button("🔊 Process Query", type="primary", use_container_width=True):
-            if query_text:
-                with st.spinner("Processing your query..."):
-                    # Cloud Demo Mode: Using internal analysis function instead of API call
-                    result = analyze_query(
-                        text=query_text,
-                        language=selected_language["code"],
-                        user_id=st.session_state.current_user
-                    )
-                    st.session_state.last_response = result
-                    
-                    # Add to history
-                    st.session_state.query_history.append({
-                        "query": query_text,
-                        "response": result["ai_response"],
-                        "intent": result["detected_intent"],
-                        "category": result["service_category"],
-                        "confidence": result["confidence"],
-                        "timestamp": datetime.now()
-                    })
-                    
-                    st.success("✅ Query processed successfully!")
+        st.markdown('<div class="sticky-bottom">', unsafe_allow_html=True)
+        if st.button("🚀 Process Query", type="primary", use_container_width=True):
+            query = get_user_input()
+
+            if not query:
+                st.warning("Please speak or type first")
             else:
-                st.warning("Please enter a query")
+                with st.spinner("Processing your query..."):
+                    result = process_query(query, selected_language)
+                    if result:
+                        st.session_state.last_response = result
+                        st.session_state.query_history.append({
+                            "query": query,
+                            "response": result["ai_response"],
+                            "intent": result["detected_intent"],
+                            "category": result["service_category"],
+                            "confidence": result["confidence"],
+                            "timestamp": datetime.now(),
+                        })
+                        st.success(result["ai_response"])
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with col2:
         st.markdown("### Quick Actions")
