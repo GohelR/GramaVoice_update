@@ -103,6 +103,9 @@ TRANSLATIONS = {
         "query": "Your message",
         "process": "Process request",
         "status": "System status",
+        "mic_status": "Microphone status",
+        "voice_upload": "Record/Upload Voice (mobile-safe)",
+        "voice_hint": "Use your phone microphone recorder and upload audio if live mic is blocked.",
     },
     "hi": {
         "tagline": "हर गाँव के लिए आवाज़ आधारित सरकारी सहायता",
@@ -113,6 +116,9 @@ TRANSLATIONS = {
         "query": "आपका संदेश",
         "process": "अनुरोध प्रोसेस करें",
         "status": "सिस्टम स्थिति",
+        "mic_status": "माइक्रोफोन स्थिति",
+        "voice_upload": "आवाज़ रिकॉर्ड/अपलोड करें (मोबाइल सुरक्षित)",
+        "voice_hint": "अगर लाइव माइक ब्लॉक हो तो फोन रिकॉर्डर से ऑडियो अपलोड करें।",
     },
 }
 
@@ -299,6 +305,8 @@ def init_state() -> None:
         "selected_service": None,
         "history": load_demo_history().copy(),
         "logs": [],
+        "mic_status": "idle",
+        "last_audio_bytes": b"",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -348,15 +356,15 @@ def add_to_history(result: dict) -> None:
 
 
 def voice_component(lang_code: str):
-    component_id = f"voice_{lang_code}"
+    """Browser speech-recognition helper with safe fallback status payloads."""
     html = f"""
     <div style='background:#fff;border:1px solid #cbd5e1;border-radius:14px;padding:12px;font-family:Arial'>
       <div style='display:flex;gap:8px;flex-wrap:wrap'>
-        <button id='start' style='padding:10px 14px;border-radius:10px;border:none;background:#2563eb;color:#fff;font-weight:700'>🎙️ Start Recording</button>
-        <button id='stop' style='padding:10px 14px;border-radius:10px;border:1px solid #94a3b8;background:#fff;color:#0f172a;font-weight:700'>⏹ Stop Recording</button>
+        <button id='start' style='padding:10px 14px;border-radius:10px;border:none;background:#2563eb;color:#fff;font-weight:700'>🎙️ Start Listening</button>
+        <button id='stop' style='padding:10px 14px;border-radius:10px;border:1px solid #94a3b8;background:#fff;color:#0f172a;font-weight:700'>⏹ Stop</button>
       </div>
       <p id='status' style='font-size:14px;margin:8px 0;color:#334155'>Status: idle</p>
-      <textarea id='transcript' style='width:100%;min-height:82px;border:1px solid #cbd5e1;border-radius:10px;padding:8px' placeholder='Speech transcript will appear here'></textarea>
+      <textarea id='transcript' style='width:100%;min-height:82px;border:1px solid #cbd5e1;border-radius:10px;padding:8px' placeholder='Speech transcript appears here'></textarea>
     </div>
     <script>
       const lang = "{lang_code}" === "hi" ? "hi-IN" : "en-IN";
@@ -365,21 +373,29 @@ def voice_component(lang_code: str):
       const transcriptEl = document.getElementById('transcript');
       let recognition = null;
       let finalText = "";
+
       function pushUpdate(st, txt) {{
         const payload = JSON.stringify({{status: st, text: txt || transcriptEl.value || ""}});
         window.parent.Streamlit.setComponentValue(payload);
       }}
 
-      if (!SR) {{
-        statusEl.innerText = "Status: Web Speech API not supported";
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {{
+        statusEl.innerText = "Status: mic permission API unavailable";
+        pushUpdate("permission-unavailable", "");
+      }} else if (!SR) {{
+        statusEl.innerText = "Status: speech API unsupported";
         pushUpdate("unsupported", "");
       }} else {{
         recognition = new SR();
         recognition.lang = lang;
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.onstart = () => {{ statusEl.innerText = "Status: recording"; pushUpdate("recording", transcriptEl.value); }};
-        recognition.onerror = (e) => {{ statusEl.innerText = "Status: error - " + e.error; pushUpdate("error", transcriptEl.value); }};
+        recognition.onstart = () => {{ statusEl.innerText = "Status: listening"; pushUpdate("listening", transcriptEl.value); }};
+        recognition.onerror = (e) => {{
+          const code = e && e.error ? e.error : "unknown";
+          statusEl.innerText = "Status: error - " + code;
+          pushUpdate("error:" + code, transcriptEl.value);
+        }};
         recognition.onend = () => {{ statusEl.innerText = "Status: stopped"; pushUpdate("stopped", transcriptEl.value); }};
         recognition.onresult = (event) => {{
           let interim = "";
@@ -388,25 +404,40 @@ def voice_component(lang_code: str):
             if (event.results[i].isFinal) finalText += t + " "; else interim += t;
           }}
           transcriptEl.value = (finalText + interim).trim();
-          pushUpdate("listening", transcriptEl.value);
+          pushUpdate("captured", transcriptEl.value);
         }};
 
-        document.getElementById('start').onclick = () => {{
-          try {{ finalText = transcriptEl.value ? transcriptEl.value + " " : ""; recognition.start(); }} catch(e) {{ statusEl.innerText = "Status: already recording"; }}
+        document.getElementById('start').onclick = async () => {{
+          try {{
+            await navigator.mediaDevices.getUserMedia({{audio: true}});
+            finalText = transcriptEl.value ? transcriptEl.value + " " : "";
+            recognition.start();
+          }} catch(e) {{
+            statusEl.innerText = "Status: mic permission denied";
+            pushUpdate("permission-denied", transcriptEl.value);
+          }}
         }};
         document.getElementById('stop').onclick = () => {{
-          try {{ recognition.stop(); pushUpdate("stopped", transcriptEl.value); }} catch(e) {{ pushUpdate("error", transcriptEl.value); }}
+          try {{ recognition.stop(); pushUpdate("stopped", transcriptEl.value); }} catch(e) {{ pushUpdate("error:stop", transcriptEl.value); }}
         }};
       }}
     </script>
     """
-    raw = components.html(html, height=235, key=component_id)
+    raw = components.html(html, height=245)
     if raw:
         try:
             return json.loads(raw)
         except Exception:
-            return {"status": "error", "text": ""}
-    return None
+            return {"status": "error:parse", "text": ""}
+    return {"status": "idle", "text": ""}
+
+
+def transcribe_audio_bytes(audio_bytes: bytes, lang_code: str) -> str:
+    """Offline-safe placeholder transcription fallback for uploaded audio."""
+    if not audio_bytes:
+        return ""
+    # In production, replace this block with Whisper/OpenAI/AWS Transcribe call.
+    return f"[Voice note received: {len(audio_bytes)} bytes, lang={lang_code}]"
 
 
 def render_home(t):
@@ -433,12 +464,28 @@ def render_home(t):
 
 def render_voice_demo(t):
     st.markdown("### Voice + Text Input")
-    vcol, txtcol = st.columns([1.25, 1])
+    st.caption("Hybrid mode keeps text input always available and gracefully falls back when microphone fails.")
+    vcol, txtcol = st.columns([1.2, 1])
+
     with vcol:
         voice_state = voice_component(st.session_state.lang)
-        if voice_state and voice_state.get("text"):
+        mic_status = voice_state.get("status", "idle")
+        st.session_state.mic_status = mic_status
+        if voice_state.get("text"):
             st.session_state.voice_result = voice_state.get("text", "")
-            st.info(f"Voice status: {voice_state.get('status','unknown')}")
+
+        # mobile-safe recorder/upload fallback
+        audio_file = st.audio_input(t["voice_upload"])
+        if audio_file is not None:
+            audio_bytes = audio_file.read()
+            st.session_state.last_audio_bytes = audio_bytes
+            transcript = transcribe_audio_bytes(audio_bytes, st.session_state.lang)
+            if transcript:
+                st.session_state.voice_result = transcript
+                st.success("Voice captured via audio upload path.")
+
+        st.info(f"{t['mic_status']}: {st.session_state.mic_status}")
+        st.caption(t["voice_hint"])
 
     with txtcol:
         st.caption(t["fallback"])
@@ -447,12 +494,13 @@ def render_voice_demo(t):
             t["query"],
             value=incoming,
             key="voice_query_area",
-            height=150,
+            height=170,
             placeholder="Ask for pension, ration, PM-Kisan, electricity, water, etc.",
         )
         st.session_state.query_text = query
 
         if st.button(t["process"], width="stretch"):
+            query_source = "voice" if st.session_state.voice_result else "text"
             if not query.strip():
                 st.warning("Please provide voice or typed input.")
                 return
@@ -467,12 +515,13 @@ def render_voice_demo(t):
                         "confidence": intent["confidence"],
                         "explanation": intent["why"],
                         "response": response,
-                        "channel": "voice" if st.session_state.voice_result else "text",
+                        "channel": query_source,
                         "time": datetime.now(),
                     }
                     st.session_state.last_result = result
                     add_to_history(result)
                     add_log(result)
+                    st.session_state.voice_result = ""
                 except Exception as e:
                     st.error(f"Request failed safely: {e}")
 
